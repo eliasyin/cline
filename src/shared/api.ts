@@ -75,6 +75,7 @@ export interface ModelInfo {
 		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
 		geminiThinkingLevel?: "low" | "high" // Optional: preset thinking level
 		supportsThinkingLevel?: boolean // Whether the model supports thinking level (low/high)
+		supportsEffort?: boolean // Whether the model uses adaptive thinking with effort parameter (e.g. Opus 4.6)
 	}
 	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
@@ -222,7 +223,7 @@ export const anthropicModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-opus-4-6": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -231,9 +232,10 @@ export const anthropicModels = {
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
+		thinkingConfig: { supportsEffort: true },
 	},
 	"claude-opus-4-6:1m": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -243,6 +245,7 @@ export const anthropicModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+		thinkingConfig: { supportsEffort: true },
 	},
 	"claude-opus-4-5-20251101": {
 		maxTokens: 8192,
@@ -481,7 +484,7 @@ export const bedrockModels = {
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-6-v1": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -491,9 +494,10 @@ export const bedrockModels = {
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
+		thinkingConfig: { supportsEffort: true },
 	},
 	"anthropic.claude-opus-4-6-v1:1m": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -504,6 +508,7 @@ export const bedrockModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+		thinkingConfig: { supportsEffort: true },
 	},
 	"anthropic.claude-opus-4-5-20251101-v1:0": {
 		maxTokens: 8192,
@@ -896,7 +901,7 @@ export const vertexModels = {
 		supportsReasoning: true,
 	},
 	"claude-opus-4-6": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -906,9 +911,10 @@ export const vertexModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
+		thinkingConfig: { supportsEffort: true },
 	},
 	"claude-opus-4-6:1m": {
-		maxTokens: 8192,
+		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -919,6 +925,7 @@ export const vertexModels = {
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+		thinkingConfig: { supportsEffort: true },
 	},
 	"claude-opus-4-5@20251101": {
 		maxTokens: 8192,

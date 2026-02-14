@@ -38,6 +38,7 @@ export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsBedrockCustomSelected?: boolean
 	awsBedrockCustomModelBaseId?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 }
 
 // Extend AWS SDK types to include additionalModelResponseFields
@@ -846,7 +847,10 @@ export class AwsBedrockHandler implements ApiHandler {
 		// For Anthropic models with thinking enabled, temperature must be 1
 		if (modelType === "anthropic") {
 			const budget_tokens = this.options.thinkingBudgetTokens || 0
-			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
+			const useEffort = modelInfo.thinkingConfig?.supportsEffort === true
+			const reasoningOn = useEffort
+				? (modelInfo.supportsReasoning ?? false)
+				: modelInfo.supportsReasoning && budget_tokens > 0
 
 			return {
 				maxTokens: modelInfo.maxTokens || 8192,
@@ -890,7 +894,19 @@ export class AwsBedrockHandler implements ApiHandler {
 
 		// Get thinking configuration
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = model.info.supportsReasoning && budget_tokens > 0
+		const useEffort = model.info.thinkingConfig?.supportsEffort === true
+		const reasoningOn = useEffort
+			? (model.info.supportsReasoning ?? false)
+			: model.info.supportsReasoning && budget_tokens > 0
+
+		// Map reasoning effort string to API effort values
+		const getEffortLevel = (): string => {
+			const effort = this.options.reasoningEffort
+			if (effort === "low" || effort === "medium" || effort === "high" || effort === "max") {
+				return effort
+			}
+			return "high" // default
+		}
 
 		// Prepare request for Anthropic model using Converse API
 		const toolConfig = this.mapClineToolsToBedrockToolConfig(tools)
@@ -901,13 +917,20 @@ export class AwsBedrockHandler implements ApiHandler {
 			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
 			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
-				// Add thinking configuration as per LangChain documentation
-				...(reasoningOn && {
-					thinking: {
-						type: "enabled",
-						budget_tokens: budget_tokens,
-					},
-				}),
+				// Opus 4.6 uses adaptive thinking with effort parameter
+				...(reasoningOn &&
+					useEffort && {
+						thinking: { type: "adaptive" },
+						output_config: { effort: getEffortLevel() },
+					}),
+				// Other models use budget_tokens approach
+				...(reasoningOn &&
+					!useEffort && {
+						thinking: {
+							type: "enabled",
+							budget_tokens: budget_tokens,
+						},
+					}),
 				...(enable1mContextWindow && {
 					anthropic_beta: ["context-1m-2025-08-07"],
 				}),

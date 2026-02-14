@@ -15,6 +15,7 @@ interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
 	anthropicBaseUrl?: string
 	apiModelId?: string
 	thinkingBudgetTokens?: number
+	reasoningEffort?: string
 }
 
 export class AnthropicHandler implements ApiHandler {
@@ -58,37 +59,78 @@ export class AnthropicHandler implements ApiHandler {
 
 		// Tools are available only when native tools are enabled.
 		const nativeToolsOn = tools?.length && tools?.length > 0
-		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
+
+		// Opus 4.6 uses adaptive thinking with effort parameter instead of budget_tokens
+		const useEffort = model.info.thinkingConfig?.supportsEffort === true
+		const reasoningOn = useEffort
+			? (model.info.supportsReasoning ?? false)
+			: (model.info.supportsReasoning ?? false) && budget_tokens !== 0
+
+		// Map reasoning effort string to API effort values
+		const getEffortLevel = (): "low" | "medium" | "high" | "max" => {
+			const effort = this.options.reasoningEffort
+			if (effort === "low" || effort === "medium" || effort === "high" || effort === "max") {
+				return effort
+			}
+			return "high" // default
+		}
+
+		// Build thinking config based on model capabilities
+		const getThinkingConfig = (): any => {
+			if (!reasoningOn) {
+				return undefined
+			}
+			if (useEffort) {
+				return { type: "adaptive" }
+			}
+			return { type: "enabled", budget_tokens: budget_tokens }
+		}
+
+		// Build output_config for effort-based models
+		const getOutputConfig = (): any => {
+			if (!reasoningOn || !useEffort) {
+				return undefined
+			}
+			return { effort: getEffortLevel() }
+		}
 
 		if (model.info.supportsPromptCache) {
 			const anthropicMessages = sanitizeAnthropicMessages(messages, true)
 
-			stream = await client.messages.create(
-				{
-					model: modelId,
-					thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-					max_tokens: model.info.maxTokens || 8192,
-					// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
-					// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
-					temperature: reasoningOn ? undefined : 0,
-					system: [
-						{
-							text: systemPrompt,
-							type: "text",
-							cache_control: { type: "ephemeral" },
-						},
-					], // setting cache breakpoint for system prompt so new tasks can reuse it
-					messages: anthropicMessages,
-					// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
-					stream: true,
-					tools: nativeToolsOn ? tools : undefined,
-					// tool_choice options:
-					// - none: disables tool use, even if tools are provided. Claude will not call any tools.
-					// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-					// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-					// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
-					tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
-				},
+			const createParams: any = {
+				model: modelId,
+				thinking: getThinkingConfig(),
+				max_tokens: model.info.maxTokens || 8192,
+				// "Thinking isn't compatible with temperature, top_p, or top_k modifications as well as forced tool use."
+				// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
+				temperature: reasoningOn ? undefined : 0,
+				system: [
+					{
+						text: systemPrompt,
+						type: "text",
+						cache_control: { type: "ephemeral" },
+					},
+				], // setting cache breakpoint for system prompt so new tasks can reuse it
+				messages: anthropicMessages,
+				// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
+				stream: true,
+				tools: nativeToolsOn ? tools : undefined,
+				// tool_choice options:
+				// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+				// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+				// - any: tells Claude that it must use one of the provided tools, but doesn't force a particular tool.
+				// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
+			}
+
+			// Add output_config for effort-based models (Opus 4.6)
+			const outputConfig = getOutputConfig()
+			if (outputConfig) {
+				createParams.output_config = outputConfig
+			}
+
+			stream = (await client.messages.create(
+				createParams,
 				(() => {
 					// 1m context window beta header
 					if (enable1mContextWindow) {
@@ -97,11 +139,10 @@ export class AnthropicHandler implements ApiHandler {
 								"anthropic-beta": "context-1m-2025-08-07",
 							},
 						}
-					} else {
-						return undefined
 					}
+					return undefined
 				})(),
-			)
+			)) as any
 		} else {
 			stream = await client.messages.create({
 				model: modelId,

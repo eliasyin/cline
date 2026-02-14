@@ -17,13 +17,15 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer } from "../common/ModelSelector"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
+// Bedrock models that use adaptive thinking with effort parameter (Opus 4.6)
+const BEDROCK_EFFORT_MODELS = ["anthropic.claude-opus-4-6-v1", `anthropic.claude-opus-4-6-v1${CLAUDE_SONNET_1M_SUFFIX}`]
+
 export const SUPPORTED_BEDROCK_THINKING_MODELS = [
-	"anthropic.claude-opus-4-6-v1",
-	`anthropic.claude-opus-4-6-v1${CLAUDE_SONNET_1M_SUFFIX}`,
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -520,6 +522,13 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								</VSCodeDropdown>
 							</DropdownContainer>
 						</div>
+					)}
+
+					{(BEDROCK_EFFORT_MODELS.includes(selectedModelId) ||
+						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId &&
+							BEDROCK_EFFORT_MODELS.includes(modeFields.awsBedrockCustomModelBaseId))) && (
+						<ReasoningEffortSelector allowedEfforts={["low", "medium", "high", "max"]} currentMode={currentMode} />
 					)}
 
 					{(SUPPORTED_BEDROCK_THINKING_MODELS.includes(selectedModelId) ||

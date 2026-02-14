@@ -7,14 +7,16 @@ import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-// Anthropic models that support thinking/reasoning mode
+// Anthropic models that use adaptive thinking with effort parameter (Opus 4.6)
+const ANTHROPIC_EFFORT_MODELS = ["claude-opus-4-6", `claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`]
+
+// Anthropic models that support thinking/reasoning mode (budget_tokens approach)
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
-	"claude-opus-4-6",
-	`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
@@ -108,6 +110,10 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						onModelChange={handleModelChange}
 						selectedModelId={selectedModelId}
 					/>
+
+					{ANTHROPIC_EFFORT_MODELS.includes(selectedModelId) && (
+						<ReasoningEffortSelector allowedEfforts={["low", "medium", "high", "max"]} currentMode={currentMode} />
+					)}
 
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
